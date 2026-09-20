@@ -22,7 +22,6 @@ from downloader import (
     download_by_quality, 
     download_cropped_video,
     download_muted_video,
-    recognize_music,
     merge_audio_video,
     upscale_video,
     upscale_image,
@@ -37,10 +36,8 @@ dp = Dispatcher(storage=MemoryStorage())
 user_urls = {}
 gallery_videos = {}
 
-# Foydalanuvchilarning tillarini saqlash uchun lug'at (Kelajakda buni bazaga ulash mumkin)
 user_langs = {}
 
-# Tillar lug'ati
 LANGS = {
     "uz": {
         "start": "Assalomu alaykum! Video yuklab olish uchun YouTube/Instagram havolasini yuboring yoki galereyadan rasm/video tashlang.",
@@ -109,7 +106,6 @@ async def start_handler(message: types.Message, state: FSMContext):
     lang = get_lang(message.from_user.id)
     await message.answer(LANGS[lang]["start"], reply_markup=get_main_menu(message.from_user.id))
 
-# --- SOZLAMALAR VA TIL TANLASH ---
 @dp.message(lambda msg: msg.text in [LANGS["uz"]["settings"], LANGS["ru"]["settings"], LANGS["en"]["settings"]])
 async def menu_settings(message: types.Message):
     kb = InlineKeyboardMarkup(inline_keyboard=[
@@ -128,7 +124,6 @@ async def set_language(call: CallbackQuery):
     await call.message.answer(LANGS[selected_lang]["lang_saved"], reply_markup=get_main_menu(call.from_user.id))
     await call.answer()
 
-# --- QOLGAN MENYULAR ---
 @dp.message(lambda msg: msg.text in [LANGS["uz"]["services"], LANGS["ru"]["services"], LANGS["en"]["services"]])
 async def menu_xizmatlar(message: types.Message):
     kb = InlineKeyboardMarkup(inline_keyboard=[
@@ -155,8 +150,6 @@ async def menu_qollanma(message: types.Message):
 async def menu_qollab_quvvatlash(message: types.Message):
     await message.answer(f"☎️ Savollar uchun admin: {ADMIN_USERNAME}")
 
-
-# --- XIZMATLAR CALLBACKLARI ---
 @dp.callback_query(F.data == "serv:upscale_img")
 async def callback_upscale_img(call: CallbackQuery, state: FSMContext):
     await call.message.answer("🖼 <b>Rasm sifatini ko'tarish:</b>\n\nIltimos, sifatini oshirmoqchi bo'lgan <b>rasmni yuboring</b>.", parse_mode="HTML")
@@ -180,7 +173,6 @@ async def callback_mute_info(call: CallbackQuery):
     await call.message.answer("🔇 Videodan ovozni o'chirish uchun YouTube/Instagram havolasini yuboring yoki galereyadan video tashlang.", parse_mode="HTML")
     await call.answer()
 
-# --- FAYLLARNI QABUL QILISH ---
 @dp.message(ServiceState.waiting_for_image, F.photo | F.document)
 async def process_service_image(message: types.Message, state: FSMContext):
     if message.photo:
@@ -262,7 +254,6 @@ async def process_service_video(message: types.Message, state: FSMContext):
     else:
         await status_msg.edit_text(f"❌ Xatolik: {res['error']}")
 
-
 @dp.message(F.video | F.document)
 async def handle_gallery_video(message: types.Message, state: FSMContext):
     current_state = await state.get_state()
@@ -287,7 +278,7 @@ async def handle_gallery_video(message: types.Message, state: FSMContext):
         [InlineKeyboardButton(text="⚡️ 2K", callback_data="gal:2K"), InlineKeyboardButton(text="💎 4K", callback_data="gal:4K")],
         [InlineKeyboardButton(text="🔇 Ovozni o'chirish", callback_data="gal:mute")]
     ])
-    await message.answer("📥 <b>Video qabul qilindi! (Pullik xizmat)</b>\n\nQuyidagi amallardan birini tanlang:", reply_markup=kb, parse_mode="HTML")
+    await message.answer("📥 <b>Video qabul qilindi!</b>\n\nQuyidagi amallardan birini tanlang:", reply_markup=kb, parse_mode="HTML")
 
 @dp.callback_query(F.data.startswith("gal:"))
 async def handle_gallery_actions(call: CallbackQuery):
@@ -378,24 +369,6 @@ async def handle_download_callback(call: CallbackQuery, state: FSMContext):
 
     info = user_urls[user_id]
     caption_text = f"👉 {BOT_USERNAME}"
-
-    if quality == "shazam":
-        await call.answer("🔍 Qo'shiq qidirilmoqda...")
-        status = await call.message.answer("🔎 Videodagi qo'shiq aniqlanmoqda, biroz kuting...")
-        res = await recognize_music(info["url"])
-        if res["success"]:
-            text_cap = f"🎵 <b>Topilgan qo'shiq:</b>\n🎤 {res['subtitle']} - {res['title']}\n\n👉 {BOT_USERNAME}"
-            file_size_mb = os.path.getsize(res["file_path"]) / (1024 * 1024)
-            if file_size_mb > 49.5:
-                 await status.edit_text("❌ Musiqa hajmi 50 MB dan katta. Yuborib bo'lmaydi.")
-            else:
-                 file = FSInputFile(res["file_path"])
-                 await call.message.answer_audio(audio=file, performer=res['subtitle'], title=res['title'], caption=text_cap, parse_mode="HTML")
-                 await status.delete()
-            if os.path.exists(res["file_path"]): os.remove(res["file_path"])
-        else:
-            await status.edit_text(f"❌ Xatolik: {res['error']}")
-        return
     
     if quality == "mute":
         await call.answer("🔇 Video ovozsiz ishlanmoqda...")
@@ -433,7 +406,7 @@ async def handle_download_callback(call: CallbackQuery, state: FSMContext):
     if res["success"]:
         file_size_mb = os.path.getsize(res["file_path"]) / (1024 * 1024)
         if file_size_mb > 49.5:
-            await status.edit_text("❌ <b>Xatolik:</b> Telegram botlar orqali 50 MB dan katta fayllarni yuborish ruxsat etilmagan. Iltimos, hajmi kichikroq sifatni tanlang.", parse_mode="HTML")
+            await status.edit_text("❌ <b>Xatolik:</b> Telegram botlar orqali 50 MB dan katta fayllarni yuborish ruxsat etilmagan.", parse_mode="HTML")
             if os.path.exists(res["file_path"]): os.remove(res["file_path"])
         else:
             await status.edit_text("📤 Telegram'ga yuklanmoqda...")
