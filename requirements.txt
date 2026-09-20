@@ -4,3 +4,6 @@ requests
 python-dotenv
 pydantic>=2.0.0
 imageio_ffmpeg
+instaloader
+shazamio
+replicate
