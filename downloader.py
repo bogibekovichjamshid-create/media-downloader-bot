@@ -6,7 +6,6 @@ import aiohttp
 import uuid
 import re
 import instaloader
-from shazamio import Shazam
 import replicate
 from dotenv import load_dotenv
 
@@ -38,12 +37,10 @@ async def get_instagram_images(url: str) -> dict:
             try:
                 post = instaloader.Post.from_shortcode(L.context, shortcode)
                 images = []
-                # Karusel postlar (bir nechta rasm)
                 if post.typename == 'GraphSidecar':
                     for node in post.get_sidecar_nodes():
                         if not node.is_video:
                             images.append(node.display_url)
-                # Bitta rasm bo'lsa
                 elif post.typename == 'GraphImage':
                     images.append(post.url)
                 return images
@@ -239,71 +236,6 @@ async def download_cropped_video(url: str, start_time: str, end_time: str, quali
     except Exception as e:
         if os.path.exists(input_file):
             os.remove(input_file)
-        return {"success": False, "error": str(e)}
-
-async def download_mp3_by_query(query: str) -> dict:
-    file_id = uuid.uuid4().hex
-    filename = f"song_{file_id}.mp3"
-
-    ydl_opts = {
-        **BASE_YTDLP_OPTS,
-        'format': 'bestaudio/best',
-        'outtmpl': f"song_{file_id}.%(ext)s",
-        'default_search': 'ytsearch1',
-        'postprocessors': [{
-            'key': 'FFmpegExtractAudio',
-            'preferredcodec': 'mp3',
-            'preferredquality': '192',
-        }],
-    }
-
-    loop = asyncio.get_event_loop()
-    try:
-        def _download():
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                ydl.download([query])
-
-        await loop.run_in_executor(None, _download)
-        
-        if os.path.exists(filename):
-            return {"success": True, "file_path": filename}
-        return {"success": False, "error": "Musiqa topilmadi."}
-    except Exception as e:
-        return {"success": False, "error": str(e)}
-
-async def recognize_music(url: str) -> dict:
-    audio_res = await download_by_quality(url, "mp3")
-    if not audio_res["success"]:
-        return {"success": False, "error": audio_res["error"]}
-    
-    file_path = audio_res["file_path"]
-    try:
-        shazam = Shazam()
-        out = await shazam.recognize(file_path)
-        
-        if os.path.exists(file_path):
-            os.remove(file_path)
-
-        track = out.get('track')
-        if track:
-            title = track.get('title', 'Unknown')
-            subtitle = track.get('subtitle', 'Unknown')
-            search_query = f"{subtitle} - {title}"
-            
-            mp3_res = await download_mp3_by_query(search_query)
-            if mp3_res["success"]:
-                return {
-                    "success": True,
-                    "title": title,
-                    "subtitle": subtitle,
-                    "file_path": mp3_res["file_path"]
-                }
-            return {"success": False, "error": f"Musiqa yuklanmadi: {mp3_res.get('error')}"}
-            
-        return {"success": False, "error": "Videoda musiqa topilmadi."}
-    except Exception as e:
-        if os.path.exists(file_path):
-            os.remove(file_path)
         return {"success": False, "error": str(e)}
 
 async def merge_audio_video(video_path: str, audio_path: str) -> dict:
